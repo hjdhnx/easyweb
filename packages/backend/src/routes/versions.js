@@ -35,8 +35,10 @@ export default async function versionRoutes(fastify, options) {
         });
       }
 
-      // 检查权限
-      if (userRole !== 'admin' && project.manager_id !== userId) {
+      // 检查权限：管理员、项目创建者、项目管理员或有权限的用户可以查看版本历史
+      if (userRole !== 'admin' && 
+          project.user_id !== userId && 
+          project.manager_id !== userId) {
         const permission = await ProjectPermission.findOne(
           'project_id = ? AND user_id = ?',
           [projectId, userId]
@@ -95,8 +97,10 @@ export default async function versionRoutes(fastify, options) {
         });
       }
 
-      // 检查权限：管理员或项目管理员可以激活版本
-      if (userRole !== 'admin' && project.manager_id !== userId) {
+      // 检查权限：管理员、项目创建者、项目管理员或有写权限的用户可以激活版本
+      if (userRole !== 'admin' && 
+          project.user_id !== userId && 
+          project.manager_id !== userId) {
         const permission = await ProjectPermission.findOne(
           'project_id = ? AND user_id = ? AND permission = ?',
           [project.id, userId, 'write']
@@ -162,8 +166,10 @@ export default async function versionRoutes(fastify, options) {
         });
       }
 
-      // 检查权限：管理员或项目管理员可以删除版本
-      if (userRole !== 'admin' && project.manager_id !== userId) {
+      // 检查权限：管理员、项目创建者、项目管理员或有写权限的用户可以删除版本
+      if (userRole !== 'admin' && 
+          project.user_id !== userId && 
+          project.manager_id !== userId) {
         const permission = await ProjectPermission.findOne(
           'project_id = ? AND user_id = ? AND permission = ?',
           [project.id, userId, 'write']

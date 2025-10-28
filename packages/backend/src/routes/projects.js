@@ -227,8 +227,10 @@ export default async function projectRoutes(fastify, options) {
         });
       }
 
-      // 检查权限：管理员或项目管理员可以更新
-      if (userRole !== 'admin' && project.manager_id !== userId) {
+      // 检查权限：管理员、项目创建者或项目管理员可以更新
+      if (userRole !== 'admin' && 
+          project.user_id !== userId && 
+          project.manager_id !== userId) {
         return reply.status(403).send({
           success: false,
           message: '无权限修改此项目'
@@ -273,16 +275,28 @@ export default async function projectRoutes(fastify, options) {
 
   // 删除项目
   fastify.delete('/:id', {
-    preHandler: [authenticate, requireAdmin]
+    preHandler: authenticate
   }, async (request, reply) => {
     try {
       const projectId = request.params.id;
+      const userId = request.user.id;
+      const userRole = request.user.role;
 
       const project = await Project.findById(projectId);
       if (!project) {
         return reply.status(404).send({
           success: false,
           message: '项目不存在'
+        });
+      }
+
+      // 检查权限：管理员、项目创建者或项目管理员可以删除
+      if (userRole !== 'admin' && 
+          project.user_id !== userId && 
+          project.manager_id !== userId) {
+        return reply.status(403).send({
+          success: false,
+          message: '无权限删除此项目'
         });
       }
 

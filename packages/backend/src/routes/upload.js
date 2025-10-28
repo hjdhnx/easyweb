@@ -171,8 +171,10 @@ export default async function uploadRoutes(fastify, options) {
         });
       }
 
-      // 检查权限：管理员或项目所有者可以上传
-      if (userRole !== 'admin' && project.user_id !== userId) {
+      // 检查权限：管理员、项目创建者或项目管理员可以上传
+      if (userRole !== 'admin' && 
+          project.user_id !== userId && 
+          project.manager_id !== userId) {
         return reply.status(403).send({
           success: false,
           message: '无权限上传到此项目'
