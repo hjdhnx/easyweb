@@ -1,0 +1,38 @@
+{
+  "name": "easyweb-backend",
+  "version": "1.0.0",
+  "description": "EasyWeb后端API服务",
+  "type": "module",
+  "main": "src/app.js",
+  "scripts": {
+    "dev": "nodemon src/app.js",
+    "start": "node src/app.js",
+    "clean": "rimraf node_modules dist",
+    "db:init": "node src/utils/initDb.js"
+  },
+  "dependencies": {
+    "fastify": "^4.24.3",
+    "@fastify/cors": "^8.4.0",
+    "@fastify/multipart": "^8.0.0",
+    "@fastify/static": "^6.12.0",
+    "@fastify/jwt": "^7.2.4",
+    "@fastify/cookie": "^9.2.0",
+    "node-sqlite3-wasm": "^0.8.14",
+    "bcryptjs": "^2.4.3",
+    "yauzl": "^3.0.0",
+    "pino": "^8.16.2",
+    "pino-pretty": "^10.2.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2",
+    "rimraf": "^5.0.5"
+  },
+  "keywords": [
+    "fastify",
+    "sqlite",
+    "api",
+    "backend"
+  ],
+  "author": "EasyWeb Team",
+  "license": "MIT"
+}

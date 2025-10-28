@@ -1,0 +1,29 @@
+{
+  "name": "easyweb",
+  "version": "1.0.0",
+  "description": "静态网站项目管理系统",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"pnpm --filter backend dev\" \"pnpm --filter frontend dev\"",
+    "build": "pnpm --filter frontend build",
+    "start": "pnpm --filter backend start",
+    "install:all": "pnpm install -r",
+    "clean": "pnpm --filter backend clean && pnpm --filter frontend clean"
+  },
+  "keywords": [
+    "static-website",
+    "project-management",
+    "vue3",
+    "fastify",
+    "sqlite"
+  ],
+  "author": "EasyWeb Team",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^7.6.0"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "pnpm": ">=7.0.0"
+  }
+}
