@@ -79,6 +79,17 @@ export default async function projectRoutes(fastify, options) {
           LEFT JOIN versions v ON p.id = v.project_id AND v.is_active = 1
           ORDER BY p.created_at DESC
         `);
+      } else if (userRole === 'manager') {
+        // 项目管理员可以看到自己创建的项目和被分配管理的项目
+        projects = dbAll(`
+          SELECT p.*, u.username as owner_name,
+                 v.version as active_version
+          FROM projects p 
+          LEFT JOIN users u ON p.user_id = u.id 
+          LEFT JOIN versions v ON p.id = v.project_id AND v.is_active = 1
+          WHERE p.user_id = ? OR p.manager_id = ?
+          ORDER BY p.created_at DESC
+        `, [userId, userId]);
       } else {
         // 普通用户只能看到自己的项目
         projects = dbAll(`

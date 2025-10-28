@@ -285,6 +285,13 @@ const updateUserRole = async (user) => {
       role: user.role
     })
     Message.success('用户角色更新成功')
+    
+    // 如果更新的是当前用户，需要更新用户状态
+    if (user.id === userStore.user?.id) {
+      await userStore.checkAuth()
+      // 刷新项目列表，因为权限可能发生变化
+      await fetchProjects()
+    }
   } catch (error) {
     Message.error('用户角色更新失败')
     await fetchUsers() // 重新获取数据
@@ -297,6 +304,8 @@ const updateProjectOwner = async (project) => {
       manager_id: project.owner_id
     })
     Message.success('项目负责人更新成功')
+    // 立即更新界面显示
+    await fetchProjects()
   } catch (error) {
     Message.error('项目负责人更新失败')
     await fetchProjects() // 重新获取数据
