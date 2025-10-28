@@ -1,4 +1,10 @@
 import { Version, Project, ProjectPermission, dbAll, dbRun } from '../utils/database.js';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const authenticate = async (request, reply) => {
   try {
@@ -176,6 +182,26 @@ export default async function versionRoutes(fastify, options) {
           current_version_id: null,
           updated_at: new Date().toISOString()
         });
+      }
+
+      // 删除版本对应的静态文件目录
+      try {
+        const staticDir = path.join(__dirname, '../../static');
+        const versionDir = path.join(staticDir, 'projects', version.project_id.toString(), version.version);
+        
+        // 检查目录是否存在
+        try {
+          await fs.access(versionDir);
+          // 递归删除版本目录及其所有内容
+          await fs.rm(versionDir, { recursive: true, force: true });
+          console.log(`版本静态文件目录删除成功: ${versionDir}`);
+        } catch (accessError) {
+          // 目录不存在，跳过删除
+          console.log(`版本静态文件目录不存在，跳过删除: ${versionDir}`);
+        }
+      } catch (error) {
+        console.error('删除版本静态文件失败:', error);
+        // 不阻止版本记录的删除，只记录错误
       }
 
       await Version.delete(versionId);
