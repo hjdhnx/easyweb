@@ -155,6 +155,8 @@
           <a-upload
             :file-list="uploadForm.fileList"
             :before-upload="beforeUpload"
+            :custom-request="() => {}"
+            @change="onFileChange"
             @remove="removeFile"
             accept=".zip"
             :limit="1"
@@ -220,6 +222,35 @@ const activeVersion = computed(() => {
   return projectStore.versions.find(v => v.is_active)
 })
 
+const onFileChange = (fileList, fileItem) => {
+  if (fileItem && fileItem.file) {
+    const file = fileItem.file
+    
+    // 验证文件类型和大小
+    if (!file.name.endsWith('.zip')) {
+      Message.error('只支持ZIP格式文件')
+      uploadForm.fileList = []
+      return
+    }
+    
+    if (file.size > 100 * 1024 * 1024) { // 100MB
+      Message.error('文件大小不能超过100MB')
+      uploadForm.fileList = []
+      return
+    }
+    
+    // 使用正确的文件对象格式
+    uploadForm.fileList = [{
+      uid: Date.now().toString(),
+      name: file.name,
+      status: 'done',
+      file: file
+    }]
+  } else {
+    uploadForm.fileList = []
+  }
+}
+
 const beforeUpload = (file) => {
   if (!file.name.endsWith('.zip')) {
     Message.error('只支持ZIP格式文件')
@@ -253,7 +284,7 @@ const handleUpload = async () => {
   uploading.value = true
   
   const formData = new FormData()
-  formData.append('file', uploadForm.fileList[0])
+  formData.append('file', uploadForm.fileList[0].file)
   formData.append('versionName', uploadForm.version)
   formData.append('setActive', uploadForm.setActive)
   
@@ -264,7 +295,7 @@ const handleUpload = async () => {
     showUploadModal.value = false
     resetUploadForm()
     await Promise.all([
-      projectStore.fetchProjectDetail(projectId.value),
+      projectStore.fetchProject(projectId.value),
       projectStore.fetchVersions(projectId.value)
     ])
   } else {
@@ -286,7 +317,7 @@ const previewVersion = (version) => {
 }
 
 const activateVersion = async (version) => {
-  const result = await projectStore.activateVersion(projectId.value, version.id)
+  const result = await projectStore.activateVersion(version.id)
   if (result.success) {
     Message.success('版本激活成功')
     await projectStore.fetchVersions(projectId.value)
@@ -300,7 +331,7 @@ const deleteVersion = (version) => {
     title: '确认删除',
     content: `确定要删除版本"${version.version}"吗？此操作不可恢复。`,
     onOk: async () => {
-      const result = await projectStore.deleteVersion(projectId.value, version.id)
+      const result = await projectStore.deleteVersion(version.id)
       if (result.success) {
         Message.success('版本删除成功')
         await projectStore.fetchVersions(projectId.value)

@@ -207,6 +207,18 @@ function initDatabase() {
       // 字段已存在，忽略错误
     }
 
+    try {
+      dbRun(`ALTER TABLE versions ADD COLUMN is_active BOOLEAN DEFAULT FALSE`)
+    } catch (error) {
+      // 字段已存在，忽略错误
+    }
+
+    try {
+      dbRun(`ALTER TABLE projects ADD COLUMN current_version_id INTEGER REFERENCES versions(id)`)
+    } catch (error) {
+      // 字段已存在，忽略错误
+    }
+
     // 检查是否已有管理员用户
     const adminUser = dbGet("SELECT * FROM users WHERE role = 'admin'")
     

@@ -176,16 +176,11 @@ export const useProjectStore = defineStore('project', () => {
           'Content-Type': 'multipart/form-data'
         }
       })
-      if (response.data.success && currentProject.value) {
-        await fetchVersions(currentProject.value.id) // 刷新版本列表
-      }
+      
       return response.data
     } catch (error) {
-      console.error('文件上传失败:', error)
-      return { 
-        success: false, 
-        message: error.response?.data?.message || '文件上传失败' 
-      }
+      console.error('上传文件失败:', error)
+      throw error
     } finally {
       loading.value = false
     }

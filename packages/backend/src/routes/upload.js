@@ -62,8 +62,58 @@ const extractZip = async (zipPath, extractPath) => {
         }
       });
 
-      zipfile.on('end', () => {
-        resolve();
+      zipfile.on('end', async () => {
+        try {
+          // 检查是否存在 index.html
+          const indexPath = path.join(extractPath, 'index.html');
+          try {
+            await fs.access(indexPath);
+            // index.html 已存在，直接完成
+            resolve();
+          } catch {
+            // index.html 不存在，查找第一个 HTML 文件
+            const files = await fs.readdir(extractPath);
+            const htmlFiles = files.filter(file => file.toLowerCase().endsWith('.html'));
+            
+            if (htmlFiles.length > 0) {
+              // 找到HTML文件，创建重定向的index.html
+              const firstHtmlFile = htmlFiles[0];
+              const redirectContent = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="0; url=./${firstHtmlFile}">
+    <title>Redirecting...</title>
+</head>
+<body>
+    <p>Redirecting to <a href="./${firstHtmlFile}">${firstHtmlFile}</a>...</p>
+    <script>
+        window.location.href = './${firstHtmlFile}';
+    </script>
+</body>
+</html>`;
+              await fs.writeFile(indexPath, redirectContent, 'utf8');
+            } else {
+              // 没有HTML文件，创建一个简单的index.html
+              const defaultContent = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Static Website</title>
+</head>
+<body>
+    <h1>Static Website</h1>
+    <p>This is a static website. No HTML files found in the uploaded ZIP.</p>
+</body>
+</html>`;
+              await fs.writeFile(indexPath, defaultContent, 'utf8');
+            }
+            resolve();
+          }
+        } catch (error) {
+          console.error('处理index.html失败:', error);
+          resolve(); // 即使失败也继续，不影响主流程
+        }
       });
 
       zipfile.on('error', (err) => {
@@ -88,7 +138,9 @@ export default async function uploadRoutes(fastify, options) {
         });
       }
 
-      const { projectId, versionName } = data.fields;
+      const projectId = data.fields.projectId?.value;
+      const versionName = data.fields.versionName?.value;
+      const setActive = data.fields.setActive?.value;
       
       if (!projectId || !versionName) {
         return reply.status(400).send({
@@ -101,7 +153,7 @@ export default async function uploadRoutes(fastify, options) {
       const userRole = request.user.role;
 
       // 检查项目是否存在
-      const project = Project.findById(projectId.value);
+      const project = Project.findById(projectId);
       if (!project) {
         return reply.status(404).send({
           success: false,
@@ -140,7 +192,7 @@ export default async function uploadRoutes(fastify, options) {
       await fs.writeFile(filePath, buffer);
 
       // 创建解压目录
-      const extractDir = path.join(staticDir, project.name, versionName.value);
+      const extractDir = path.join(staticDir, 'projects', projectId, versionName);
       await fs.mkdir(extractDir, { recursive: true });
 
       try {
@@ -149,8 +201,8 @@ export default async function uploadRoutes(fastify, options) {
 
         // 创建版本记录
         const versionId = Version.create({
-          project_id: projectId.value,
-          version: versionName.value,
+          project_id: projectId,
+          version: versionName,
           file_path: path.relative(path.join(__dirname, '../..'), extractDir),
           file_size: buffer.length
         });
@@ -165,7 +217,7 @@ export default async function uploadRoutes(fastify, options) {
           message: '文件上传成功',
           data: {
             versionId,
-            staticUrl: `/static/${project.name}/${versionName.value}/`
+            staticUrl: `/static/projects/${projectId}/${versionName}/`
           }
         };
       } catch (error) {
