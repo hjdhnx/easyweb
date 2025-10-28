@@ -75,6 +75,11 @@ router.beforeEach(async (to, from, next) => {
     console.log('🔄 访问需要认证的页面，检查认证状态...')
     await userStore.checkAuth(true)
     console.log(`🔄 认证检查完成: isLoggedIn=${userStore.isLoggedIn}, role=${userStore.user?.role}`)
+    
+    // 如果认证成功，启动权限检查
+    if (userStore.isLoggedIn) {
+      userStore.startPermissionCheck()
+    }
   }
   
   // 简化的路由逻辑

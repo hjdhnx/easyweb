@@ -8,6 +8,10 @@ export const useUserStore = defineStore('user', () => {
   const user = ref(savedUser ? JSON.parse(savedUser) : null)
   const loading = ref(false)
   
+  // 权限检查定时器
+  let permissionCheckInterval = null
+  let lastPermissionCheck = 0
+  
   console.log('💾 从localStorage恢复用户状态:', user.value)
 
   // 保存用户状态到 localStorage
@@ -33,6 +37,8 @@ export const useUserStore = defineStore('user', () => {
         user.value = response.data.data
         saveUserToStorage(user.value)
         console.log('✅ 登录成功，用户状态已设置并保存:', user.value)
+        // 启动权限检查
+        startPermissionCheck()
         return { success: true }
       }
       console.log('❌ 登录失败:', response.data.message)
@@ -78,6 +84,8 @@ export const useUserStore = defineStore('user', () => {
       console.error('❌ 登出请求失败:', error)
       return { success: true } // 即使请求失败，也清空本地状态
     } finally {
+      // 停止权限检查
+      stopPermissionCheck()
       user.value = null
       saveUserToStorage(null)
       console.log('🗑️ 已清空用户状态和本地存储')
@@ -128,6 +136,57 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
+  // 启动权限检查
+  const startPermissionCheck = () => {
+    if (permissionCheckInterval) return
+    
+    console.log('🔄 启动权限定时检查')
+    // 每5分钟检查一次权限
+    permissionCheckInterval = setInterval(async () => {
+      if (user.value) {
+        console.log('⏰ 定时权限检查')
+        await checkAuth()
+      }
+    }, 5 * 60 * 1000) // 5分钟
+    
+    // 监听页面焦点事件
+    const handleFocus = async () => {
+      const now = Date.now()
+      // 如果距离上次检查超过1分钟，则重新检查
+      if (user.value && now - lastPermissionCheck > 60 * 1000) {
+        console.log('👁️ 页面焦点权限检查')
+        await checkAuth()
+        lastPermissionCheck = now
+      }
+    }
+    
+    window.addEventListener('focus', handleFocus)
+    window.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        handleFocus()
+      }
+    })
+  }
+
+  // 停止权限检查
+  const stopPermissionCheck = () => {
+    if (permissionCheckInterval) {
+      console.log('⏹️ 停止权限定时检查')
+      clearInterval(permissionCheckInterval)
+      permissionCheckInterval = null
+    }
+  }
+
+  // 手动刷新权限
+  const refreshPermissions = async () => {
+    if (user.value) {
+      console.log('🔄 手动刷新权限')
+      await checkAuth()
+      return true
+    }
+    return false
+  }
+
   return {
     user,
     loading,
@@ -138,6 +197,9 @@ export const useUserStore = defineStore('user', () => {
     register,
     logout,
     checkAuth,
-    updateUser
+    updateUser,
+    startPermissionCheck,
+    stopPermissionCheck,
+    refreshPermissions
   }
 })

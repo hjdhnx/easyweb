@@ -67,6 +67,10 @@
                 <IconDown />
               </a-button>
               <template #content>
+                <a-doption @click="handleRefreshPermissions">
+                  <IconRefresh />
+                  刷新权限
+                </a-doption>
                 <a-doption @click="handleLogout">
                   <IconPoweroff />
                   退出登录
@@ -97,7 +101,8 @@ import {
   IconDown,
   IconPoweroff,
   IconMenuFold,
-  IconMenuUnfold
+  IconMenuUnfold,
+  IconRefresh
 } from '@arco-design/web-vue/es/icon'
 import { useUserStore } from '@/stores/user'
 
@@ -147,6 +152,15 @@ const onMenuClick = (key) => {
       console.log('🔄 未知的菜单key:', key)
   }
   console.log('🔄 菜单点击处理完成')
+}
+
+const handleRefreshPermissions = async () => {
+  const success = await userStore.refreshPermissions()
+  if (success) {
+    Message.success('权限已刷新')
+  } else {
+    Message.error('权限刷新失败')
+  }
 }
 
 const handleLogout = async () => {
