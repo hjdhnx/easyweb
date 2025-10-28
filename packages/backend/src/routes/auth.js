@@ -38,8 +38,10 @@ export default async function authRoutes(fastify, options) {
 
       reply.setCookie('token', token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: false, // 开发环境下设为false
         sameSite: 'lax',
+        domain: 'localhost', // 明确设置域名
+        path: '/', // 明确设置路径
         maxAge: 7 * 24 * 60 * 60 * 1000 // 7天
       });
 
