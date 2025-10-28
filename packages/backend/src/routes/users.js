@@ -1,4 +1,4 @@
-import { User } from '../utils/database.js';
+import { User, Project, Version, ProjectPermission } from '../utils/database.js';
 import bcrypt from 'bcrypt';
 
 const authenticate = async (request, reply) => {
@@ -230,6 +230,37 @@ export default async function userRoutes(fastify, options) {
         });
       }
 
+      // 检查用户是否有关联的项目（作为创建者）
+      const ownedProjects = await Project.findAll('user_id = ?', [userId]);
+      if (ownedProjects.length > 0) {
+        return reply.status(400).send({
+          success: false,
+          message: `无法删除用户，该用户拥有 ${ownedProjects.length} 个项目。请先转移或删除这些项目。`
+        });
+      }
+
+      // 检查用户是否是项目管理员
+      const managedProjects = await Project.findAll('manager_id = ?', [userId]);
+      if (managedProjects.length > 0) {
+        // 将管理员设置为null
+        for (const project of managedProjects) {
+          await Project.update(project.id, { manager_id: null });
+        }
+      }
+
+      // 删除用户的项目权限
+      const userPermissions = await ProjectPermission.findAll('user_id = ?', [userId]);
+      for (const permission of userPermissions) {
+        await ProjectPermission.delete(permission.id);
+      }
+
+      // 将用户上传的版本的upload_user_id设置为null
+      const userVersions = await Version.findAll('upload_user_id = ?', [userId]);
+      for (const version of userVersions) {
+        await Version.update(version.id, { upload_user_id: null });
+      }
+
+      // 删除用户
       await User.delete(userId);
 
       return {
