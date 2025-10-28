@@ -135,7 +135,9 @@ const projectForm = reactive({
 })
 
 const canManageProject = (project) => {
-  return userStore.isAdmin || project.owner_id === userStore.user?.id
+  return userStore.isAdmin || 
+         project.user_id === userStore.user?.id ||
+         project.manager_id === userStore.user?.id
 }
 
 const goToProject = (projectId) => {

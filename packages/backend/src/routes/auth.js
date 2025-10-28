@@ -14,7 +14,7 @@ export default async function authRoutes(fastify, options) {
         });
       }
 
-      const user = User.findOne('username = ?', [username]);
+      const user = await User.findOne('username = ?', [username]);
       if (!user) {
         return reply.status(401).send({
           success: false,

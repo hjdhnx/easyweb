@@ -108,6 +108,14 @@
               <a-button
                 type="text"
                 size="small"
+                @click="showProjectPermissions(record)"
+                style="margin-right: 8px;"
+              >
+                权限
+              </a-button>
+              <a-button
+                type="text"
+                size="small"
                 @click="deleteProject(record)"
                 class="danger"
               >
@@ -139,6 +147,85 @@
         </div>
       </a-tab-pane>
     </a-tabs>
+    
+    <!-- 项目权限管理模态框 -->
+    <a-modal
+      v-model:visible="permissionModalVisible"
+      title="项目权限管理"
+      width="800px"
+      @ok="handlePermissionModalOk"
+      @cancel="handlePermissionModalCancel"
+    >
+      <div v-if="currentProject">
+        <h3>{{ currentProject.name }}</h3>
+        <p>{{ currentProject.description }}</p>
+        
+        <div style="margin: 20px 0;">
+          <h4>添加用户权限</h4>
+          <a-form layout="inline" :model="newPermission">
+            <a-form-item label="用户">
+              <a-select
+                v-model="newPermission.userId"
+                placeholder="选择用户"
+                style="width: 200px;"
+              >
+                <a-option
+                  v-for="user in availableUsers"
+                  :key="user.id"
+                  :value="user.id"
+                >
+                  {{ user.username }} ({{ getRoleText(user.role) }})
+                </a-option>
+              </a-select>
+            </a-form-item>
+            <a-form-item label="权限">
+              <a-select
+                v-model="newPermission.permission"
+                placeholder="选择权限"
+                style="width: 150px;"
+              >
+                <a-option value="read">查看</a-option>
+                <a-option value="write">编辑</a-option>
+              </a-select>
+            </a-form-item>
+            <a-form-item>
+              <a-button type="primary" @click="addPermission">
+                添加
+              </a-button>
+            </a-form-item>
+          </a-form>
+        </div>
+        
+        <div>
+          <h4>当前权限列表</h4>
+          <a-table
+            :data="projectPermissions"
+            :columns="permissionColumns"
+            :loading="permissionsLoading"
+            :pagination="false"
+          >
+            <template #username="{ record }">
+              {{ getUserName(record.user_id) }}
+            </template>
+            <template #permission="{ record }">
+              <a-tag :color="record.permission === 'write' ? 'blue' : 'green'">
+                {{ record.permission === 'write' ? '编辑' : '查看' }}
+              </a-tag>
+            </template>
+            <template #actions="{ record }">
+              <a-button
+                type="text"
+                size="small"
+                @click="removePermission(record)"
+                class="danger"
+              >
+                移除
+              </a-button>
+            </template>
+          </a-table>
+        </div>
+      </div>
+    </a-modal>
   </div>
 </template>
 
@@ -160,6 +247,16 @@ const users = ref([])
 const usersLoading = ref(false)
 const allProjects = ref([])
 const projectsLoading = ref(false)
+
+// 权限管理相关
+const permissionModalVisible = ref(false)
+const currentProject = ref(null)
+const projectPermissions = ref([])
+const permissionsLoading = ref(false)
+const newPermission = reactive({
+  userId: null,
+  permission: 'read'
+})
 
 const systemStats = reactive({
   userCount: 0,
@@ -236,6 +333,24 @@ const projectColumns = [
   }
 ]
 
+const permissionColumns = [
+  {
+    title: '用户',
+    dataIndex: 'user_id',
+    slotName: 'username'
+  },
+  {
+    title: '权限',
+    dataIndex: 'permission',
+    slotName: 'permission'
+  },
+  {
+    title: '操作',
+    slotName: 'actions',
+    width: 100
+  }
+]
+
 const managers = computed(() => {
   return (users.value || []).filter(user => user.role === 'manager' || user.role === 'admin')
 })
@@ -248,6 +363,18 @@ const safeProjects = computed(() => {
     // 如果owner_id不在managers列表中，设为null以避免渲染错误
     owner_id: managerIds.includes(project.owner_id) ? project.owner_id : null
   }))
+})
+
+// 可分配权限的用户（排除已有权限的用户）
+const availableUsers = computed(() => {
+  if (!currentProject.value) return []
+  
+  const existingUserIds = projectPermissions.value.map(p => p.user_id)
+  return users.value.filter(user => 
+    !existingUserIds.includes(user.id) && 
+    user.id !== currentProject.value.user_id && // 排除项目创建者
+    user.id !== currentProject.value.manager_id // 排除项目管理员
+  )
 })
 
 const fetchUsers = async () => {
@@ -359,6 +486,77 @@ const formatFileSize = (bytes) => {
   const sizes = ['B', 'KB', 'MB', 'GB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
+
+// 权限管理方法
+const showProjectPermissions = async (project) => {
+  currentProject.value = project
+  permissionModalVisible.value = true
+  await fetchProjectPermissions(project.id)
+}
+
+const fetchProjectPermissions = async (projectId) => {
+  permissionsLoading.value = true
+  try {
+    const response = await api.get(`/projects/${projectId}/permissions`)
+    projectPermissions.value = response.data.data || []
+  } catch (error) {
+    Message.error('获取项目权限失败')
+    projectPermissions.value = []
+  } finally {
+    permissionsLoading.value = false
+  }
+}
+
+const addPermission = async () => {
+  if (!newPermission.userId || !newPermission.permission) {
+    Message.warning('请选择用户和权限')
+    return
+  }
+  
+  try {
+    await api.post(`/projects/${currentProject.value.id}/permissions`, {
+      user_id: newPermission.userId,
+      permission: newPermission.permission
+    })
+    Message.success('权限添加成功')
+    
+    // 重置表单
+    newPermission.userId = null
+    newPermission.permission = 'read'
+    
+    // 刷新权限列表
+    await fetchProjectPermissions(currentProject.value.id)
+  } catch (error) {
+    Message.error('权限添加失败')
+  }
+}
+
+const removePermission = async (permission) => {
+  try {
+    await api.delete(`/projects/${currentProject.value.id}/permissions/${permission.user_id}`)
+    Message.success('权限移除成功')
+    await fetchProjectPermissions(currentProject.value.id)
+  } catch (error) {
+    Message.error('权限移除失败')
+  }
+}
+
+const getUserName = (userId) => {
+  const user = users.value.find(u => u.id === userId)
+  return user ? user.username : '未知用户'
+}
+
+const handlePermissionModalOk = () => {
+  permissionModalVisible.value = false
+}
+
+const handlePermissionModalCancel = () => {
+  permissionModalVisible.value = false
+  currentProject.value = null
+  projectPermissions.value = []
+  newPermission.userId = null
+  newPermission.permission = 'read'
 }
 
 onMounted(async () => {

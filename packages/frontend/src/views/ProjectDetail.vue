@@ -215,7 +215,9 @@ const projectId = computed(() => route.params.id)
 
 const canManageProject = computed(() => {
   const project = projectStore.currentProject
-  return userStore.isAdmin || (project && project.owner_id === userStore.user?.id)
+  return userStore.isAdmin || 
+         (project && project.user_id === userStore.user?.id) ||
+         (project && project.manager_id === userStore.user?.id)
 })
 
 const activeVersion = computed(() => {

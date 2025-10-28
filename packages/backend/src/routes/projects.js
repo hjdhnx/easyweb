@@ -80,27 +80,29 @@ export default async function projectRoutes(fastify, options) {
           ORDER BY p.created_at DESC
         `);
       } else if (userRole === 'manager') {
-        // 项目管理员可以看到自己创建的项目和被分配管理的项目
+        // 项目管理员可以看到自己创建的项目、被分配管理的项目和有权限的项目
         projects = dbAll(`
-          SELECT p.*, u.username as owner_name,
+          SELECT DISTINCT p.*, u.username as owner_name,
                  v.version as active_version
           FROM projects p 
           LEFT JOIN users u ON p.user_id = u.id 
           LEFT JOIN versions v ON p.id = v.project_id AND v.is_active = 1
-          WHERE p.user_id = ? OR p.manager_id = ?
+          LEFT JOIN project_permissions pp ON p.id = pp.project_id
+          WHERE p.user_id = ? OR p.manager_id = ? OR pp.user_id = ?
+          ORDER BY p.created_at DESC
+        `, [userId, userId, userId]);
+      } else {
+        // 普通用户可以看到自己的项目和被分配权限的项目
+        projects = dbAll(`
+          SELECT DISTINCT p.*, u.username as owner_name,
+                 v.version as active_version
+          FROM projects p 
+          LEFT JOIN users u ON p.user_id = u.id 
+          LEFT JOIN versions v ON p.id = v.project_id AND v.is_active = 1
+          LEFT JOIN project_permissions pp ON p.id = pp.project_id
+          WHERE p.user_id = ? OR pp.user_id = ?
           ORDER BY p.created_at DESC
         `, [userId, userId]);
-      } else {
-        // 普通用户只能看到自己的项目
-        projects = dbAll(`
-          SELECT p.*, u.username as owner_name,
-                 v.version as active_version
-          FROM projects p 
-          LEFT JOIN users u ON p.user_id = u.id 
-          LEFT JOIN versions v ON p.id = v.project_id AND v.is_active = 1
-          WHERE p.user_id = ? 
-          ORDER BY p.created_at DESC
-        `, [userId]);
       }
 
       return {
@@ -141,8 +143,10 @@ export default async function projectRoutes(fastify, options) {
 
       const projectData = project[0];
 
-      // 检查权限
-      if (userRole !== 'admin' && projectData.manager_id !== userId) {
+      // 检查权限：管理员、项目创建者、项目管理员或有权限的用户可以访问
+      if (userRole !== 'admin' && 
+          projectData.user_id !== userId && 
+          projectData.manager_id !== userId) {
         const permission = await ProjectPermission.findOne(
           'project_id = ? AND user_id = ?',
           [projectId, userId]
@@ -395,6 +399,109 @@ export default async function projectRoutes(fastify, options) {
       return {
         success: true,
         message: '权限分配成功'
+      };
+    } catch (error) {
+      fastify.log.error(error);
+      return reply.status(500).send({
+        success: false,
+        message: '服务器内部错误'
+      });
+    }
+  });
+
+  // 获取项目权限列表
+  fastify.get('/:id/permissions', {
+    preHandler: authenticate
+  }, async (request, reply) => {
+    try {
+      const projectId = request.params.id;
+      const userId = request.user.id;
+      const userRole = request.user.role;
+
+      const project = await Project.findById(projectId);
+      if (!project) {
+        return reply.status(404).send({
+          success: false,
+          message: '项目不存在'
+        });
+      }
+
+      // 检查权限：管理员、项目创建者或项目管理员可以查看权限列表
+      if (userRole !== 'admin' && 
+          project.user_id !== userId && 
+          project.manager_id !== userId) {
+        return reply.status(403).send({
+          success: false,
+          message: '无权限查看此项目的权限列表'
+        });
+      }
+
+      const permissions = dbAll(`
+        SELECT pp.*, u.username, u.email
+        FROM project_permissions pp
+        JOIN users u ON pp.user_id = u.id
+        WHERE pp.project_id = ?
+        ORDER BY pp.created_at DESC
+      `, [projectId]);
+
+      return {
+        success: true,
+        data: permissions
+      };
+    } catch (error) {
+      fastify.log.error(error);
+      return reply.status(500).send({
+        success: false,
+        message: '服务器内部错误'
+      });
+    }
+  });
+
+  // 删除项目权限
+  fastify.delete('/:id/permissions/:userId', {
+    preHandler: authenticate
+  }, async (request, reply) => {
+    try {
+      const projectId = request.params.id;
+      const targetUserId = request.params.userId;
+      const userId = request.user.id;
+      const userRole = request.user.role;
+
+      const project = await Project.findById(projectId);
+      if (!project) {
+        return reply.status(404).send({
+          success: false,
+          message: '项目不存在'
+        });
+      }
+
+      // 检查权限：管理员、项目创建者或项目管理员可以删除权限
+      if (userRole !== 'admin' && 
+          project.user_id !== userId && 
+          project.manager_id !== userId) {
+        return reply.status(403).send({
+          success: false,
+          message: '无权限删除此项目的权限'
+        });
+      }
+
+      const permission = await ProjectPermission.findOne(
+        'project_id = ? AND user_id = ?',
+        [projectId, targetUserId]
+      );
+
+      if (!permission) {
+        return reply.status(404).send({
+          success: false,
+          message: '权限记录不存在'
+        });
+      }
+
+      await ProjectPermission.delete(permission.id);
+
+      return {
+        success: true,
+        message: '权限删除成功'
       };
     } catch (error) {
       fastify.log.error(error);

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Upload Test</title>
+</head>
+<body>
+    <h1>Upload Test</h1>
+    <form id="uploadForm">
+        <input type="file" id="fileInput" accept=".zip" required>
+        <input type="text" id="projectId" placeholder="Project ID" value="6" required>
+        <input type="text" id="versionName" placeholder="Version Name" value="test-v1.0" required>
+        <button type="submit">Upload</button>
+    </form>
+    
+    <div id="result"></div>
+    
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const fileInput = document.getElementById('fileInput');
+            const projectId = document.getElementById('projectId').value;
+            const versionName = document.getElementById('versionName').value;
+            
+            if (!fileInput.files[0]) {
+                alert('Please select a file');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('projectId', projectId);
+            formData.append('versionName', versionName);
+            formData.append('setActive', 'false');
+            
+            try {
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData,
+                    credentials: 'include'
+                });
+                
+                const result = await response.text();
+                document.getElementById('result').innerHTML = `
+                    <h3>Response (${response.status}):</h3>
+                    <pre>${result}</pre>
+                `;
+            } catch (error) {
+                document.getElementById('result').innerHTML = `
+                    <h3>Error:</h3>
+                    <pre>${error.message}</pre>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>
