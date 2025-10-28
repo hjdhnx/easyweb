@@ -66,7 +66,7 @@
           
           <a-table
             :columns="projectColumns"
-            :data="allProjects"
+            :data="safeProjects"
             :loading="projectsLoading"
             :pagination="false"
             row-key="id"
@@ -82,6 +82,9 @@
                 v-model="record.owner_id"
                 @change="updateProjectOwner(record)"
                 style="width: 150px"
+                :loading="usersLoading"
+                placeholder="选择负责人"
+                allow-clear
               >
                 <a-option
                   v-for="user in managers"
@@ -234,17 +237,28 @@ const projectColumns = [
 ]
 
 const managers = computed(() => {
-  return users.value.filter(user => user.role === 'manager' || user.role === 'admin')
+  return (users.value || []).filter(user => user.role === 'manager' || user.role === 'admin')
+})
+
+// 安全的项目数据，确保owner_id在managers列表中存在
+const safeProjects = computed(() => {
+  const managerIds = (managers.value || []).map(m => m.id)
+  return (allProjects.value || []).map(project => ({
+    ...project,
+    // 如果owner_id不在managers列表中，设为null以避免渲染错误
+    owner_id: managerIds.includes(project.owner_id) ? project.owner_id : null
+  }))
 })
 
 const fetchUsers = async () => {
   usersLoading.value = true
   try {
     const response = await api.get('/users')
-    users.value = response.data.users
+    users.value = response.data.data || []  // 修复数据访问路径，添加默认值
     systemStats.userCount = users.value.length
   } catch (error) {
     Message.error('获取用户列表失败')
+    users.value = []  // 确保错误时也有默认值
   } finally {
     usersLoading.value = false
   }
@@ -254,11 +268,12 @@ const fetchProjects = async () => {
   projectsLoading.value = true
   try {
     const response = await api.get('/projects/all')
-    allProjects.value = response.data.projects
+    allProjects.value = response.data.projects || []  // 添加默认值
     systemStats.projectCount = allProjects.value.length
     systemStats.versionCount = allProjects.value.reduce((sum, p) => sum + (p.version_count || 0), 0)
   } catch (error) {
     Message.error('获取项目列表失败')
+    allProjects.value = []  // 确保错误时也有默认值
   } finally {
     projectsLoading.value = false
   }
@@ -279,7 +294,7 @@ const updateUserRole = async (user) => {
 const updateProjectOwner = async (project) => {
   try {
     await api.put(`/projects/${project.id}`, {
-      owner_id: project.owner_id
+      manager_id: project.owner_id
     })
     Message.success('项目负责人更新成功')
   } catch (error) {
@@ -337,9 +352,10 @@ const formatFileSize = (bytes) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 
-onMounted(() => {
-  fetchUsers()
-  fetchProjects()
+onMounted(async () => {
+  // 先加载用户数据，再加载项目数据，避免竞态条件
+  await fetchUsers()
+  await fetchProjects()
 })
 </script>
 

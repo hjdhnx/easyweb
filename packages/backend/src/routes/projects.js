@@ -31,6 +31,35 @@ const requireAdmin = async (request, reply) => {
 };
 
 export default async function projectRoutes(fastify, options) {
+  // 获取所有项目（管理员专用）
+  fastify.get('/all', {
+    preHandler: [authenticate, requireAdmin]
+  }, async (request, reply) => {
+    try {
+      const projects = dbAll(`
+        SELECT p.id, p.name, p.description, p.created_at, p.updated_at,
+               COALESCE(p.manager_id, p.user_id) as owner_id, 
+               COALESCE(m.username, u.username) as owner_name,
+               (SELECT COUNT(*) FROM versions v WHERE v.project_id = p.id) as version_count
+        FROM projects p 
+        LEFT JOIN users u ON p.user_id = u.id 
+        LEFT JOIN users m ON p.manager_id = m.id
+        ORDER BY p.created_at DESC
+      `);
+
+      return {
+        success: true,
+        projects: projects
+      };
+    } catch (error) {
+      fastify.log.error(error);
+      return reply.status(500).send({
+        success: false,
+        message: '服务器内部错误'
+      });
+    }
+  });
+
   // 获取项目列表
   fastify.get('/', {
     preHandler: authenticate
