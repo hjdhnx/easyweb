@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import yauzl from 'yauzl';
 import { promisify } from 'util';
 import { Project, Version } from '../utils/database.js';
+import { generateShareCode } from '../utils/crypto.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -211,12 +212,16 @@ export default async function uploadRoutes(fastify, options) {
         // 解压文件
         await extractZip(filePath, extractDir);
 
+        // 生成share_code
+        const shareCode = generateShareCode(projectId, versionName, extractDir);
+        
         // 创建版本记录
         const versionId = Version.create({
           project_id: projectId,
           version: versionName,
           file_path: path.relative(path.join(__dirname, '../..'), extractDir),
-          file_size: buffer.length
+          file_size: buffer.length,
+          share_code: shareCode
         });
         
         console.log('版本创建成功，ID:', versionId);

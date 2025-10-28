@@ -201,6 +201,13 @@ function initDatabase() {
       // 字段已存在，忽略错误
     }
 
+    // 为versions表添加share_code字段
+    try {
+      dbRun(`ALTER TABLE versions ADD COLUMN share_code VARCHAR(32) UNIQUE`)
+    } catch (error) {
+      // 字段已存在，忽略错误
+    }
+
     try {
       dbRun(`ALTER TABLE versions ADD COLUMN upload_user_id INTEGER REFERENCES users(id)`)
     } catch (error) {

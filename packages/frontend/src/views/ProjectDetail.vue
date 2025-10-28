@@ -314,8 +314,12 @@ const resetUploadForm = () => {
 }
 
 const previewVersion = (version) => {
-  const url = `/static/projects/${projectId.value}/${version.version}/index.html`
-  window.open(url, '_blank')
+  if (!version.share_code) {
+    Message.error('该版本缺少预览代码，无法预览')
+    return
+  }
+  const previewUrl = `/api/preview/share/${version.share_code}/`
+  window.open(previewUrl, '_blank')
 }
 
 const activateVersion = async (version) => {

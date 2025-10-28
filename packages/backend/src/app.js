@@ -12,6 +12,7 @@ import projectRoutes from './routes/projects.js';
 import versionRoutes from './routes/versions.js';
 import userRoutes from './routes/users.js';
 import uploadRoutes from './routes/upload.js';
+import previewRoutes from './routes/preview.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -67,6 +68,7 @@ await fastify.register(projectRoutes, { prefix: '/api/projects' });
 await fastify.register(versionRoutes, { prefix: '/api/versions' });
 await fastify.register(userRoutes, { prefix: '/api/users' });
 await fastify.register(uploadRoutes, { prefix: '/api/upload' });
+await fastify.register(previewRoutes, { prefix: '/api/preview' });
 
 // 健康检查
 fastify.get('/api/health', async (request, reply) => {
