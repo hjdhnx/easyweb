@@ -10,12 +10,20 @@
         <div class="users-section">
           <div class="section-header">
             <h2>用户列表</h2>
-            <a-button type="primary" @click="refreshUsers">
-              <template #icon>
-                <IconRefresh />
-              </template>
-              刷新
-            </a-button>
+            <div class="header-actions">
+              <a-button type="primary" @click="showCreateUserModal">
+                <template #icon>
+                  <IconPlus />
+                </template>
+                新建用户
+              </a-button>
+              <a-button type="primary" @click="refreshUsers">
+                <template #icon>
+                  <IconRefresh />
+                </template>
+                刷新
+              </a-button>
+            </div>
           </div>
           
           <a-table
@@ -25,6 +33,21 @@
             :pagination="false"
             row-key="id"
           >
+            <template #actions="{ record }">
+              <a-space>
+                <a-button size="small" @click="showChangePasswordModal(record)">
+                  修改密码
+                </a-button>
+                <a-button 
+                  size="small" 
+                  status="danger" 
+                  @click="deleteUser(record)"
+                  :disabled="record.id === currentUser.id"
+                >
+                  删除
+                </a-button>
+              </a-space>
+            </template>
             <template #role="{ record }">
               <a-select
                 v-model="record.role"
@@ -226,6 +249,52 @@
         </div>
       </div>
     </a-modal>
+
+    <!-- 新建用户模态框 -->
+    <a-modal 
+      v-model:visible="createUserModalVisible" 
+      title="新建用户" 
+      @ok="createUser"
+      :confirm-loading="createUserLoading"
+    >
+      <a-form :model="createUserForm" layout="vertical">
+        <a-form-item label="用户名" required>
+          <a-input v-model="createUserForm.username" placeholder="请输入用户名" />
+        </a-form-item>
+        <a-form-item label="邮箱" required>
+          <a-input v-model="createUserForm.email" placeholder="请输入邮箱" />
+        </a-form-item>
+        <a-form-item label="密码" required>
+          <a-input-password v-model="createUserForm.password" placeholder="请输入密码（至少6位）" />
+        </a-form-item>
+        <a-form-item label="角色" required>
+          <a-select v-model="createUserForm.role" placeholder="请选择角色">
+            <a-option value="user">普通用户</a-option>
+            <a-option value="admin">管理员</a-option>
+          </a-select>
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
+    <!-- 修改密码模态框 -->
+    <a-modal 
+      v-model:visible="changePasswordModalVisible" 
+      title="修改密码" 
+      @ok="changePassword"
+      :confirm-loading="changePasswordLoading"
+    >
+      <a-form :model="changePasswordForm" layout="vertical">
+        <a-form-item label="用户">
+          <a-input :value="selectedUser?.username" disabled />
+        </a-form-item>
+        <a-form-item label="新密码" required>
+          <a-input-password v-model="changePasswordForm.password" placeholder="请输入新密码（至少6位）" />
+        </a-form-item>
+        <a-form-item label="确认密码" required>
+          <a-input-password v-model="changePasswordForm.confirmPassword" placeholder="请再次输入新密码" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
@@ -235,7 +304,8 @@ import { useRouter } from 'vue-router'
 import { Message, Modal } from '@arco-design/web-vue'
 import {
   IconRefresh,
-  IconDelete
+  IconDelete,
+  IconPlus
 } from '@arco-design/web-vue/es/icon'
 import { useUserStore } from '@/stores/user'
 import api from '@/utils/api'
@@ -243,10 +313,32 @@ import api from '@/utils/api'
 const router = useRouter()
 const userStore = useUserStore()
 
+// 当前用户信息
+const currentUser = computed(() => userStore.user)
+
 const users = ref([])
 const usersLoading = ref(false)
 const allProjects = ref([])
 const projectsLoading = ref(false)
+
+// 新建用户相关
+const createUserModalVisible = ref(false)
+const createUserLoading = ref(false)
+const createUserForm = ref({
+  username: '',
+  email: '',
+  password: '',
+  role: 'user'
+})
+
+// 修改密码相关
+const changePasswordModalVisible = ref(false)
+const changePasswordLoading = ref(false)
+const selectedUser = ref(null)
+const changePasswordForm = ref({
+  password: '',
+  confirmPassword: ''
+})
 
 // 权限管理相关
 const permissionModalVisible = ref(false)
@@ -293,6 +385,11 @@ const userColumns = [
     title: '注册时间',
     dataIndex: 'created_at',
     slotName: 'created_at'
+  },
+  {
+    title: '操作',
+    slotName: 'actions',
+    width: 200
   }
 ]
 
@@ -422,6 +519,119 @@ const updateUserRole = async (user) => {
   } catch (error) {
     Message.error('用户角色更新失败')
     await fetchUsers() // 重新获取数据
+  }
+}
+
+// 显示新建用户模态框
+const showCreateUserModal = () => {
+  createUserForm.value = {
+    username: '',
+    email: '',
+    password: '',
+    role: 'user'
+  }
+  createUserModalVisible.value = true
+}
+
+// 新建用户
+const createUser = async () => {
+  const form = createUserForm.value
+  
+  if (!form.username || !form.email || !form.password || !form.role) {
+    Message.error('请填写完整信息')
+    return
+  }
+  
+  if (form.password.length < 6) {
+    Message.error('密码长度不能少于6位')
+    return
+  }
+  
+  createUserLoading.value = true
+  try {
+    const response = await api.post('/users', form)
+    if (response.data.success) {
+      Message.success('用户创建成功')
+      createUserModalVisible.value = false
+      await refreshUsers()
+    } else {
+      Message.error(response.data.message || '创建失败')
+    }
+  } catch (error) {
+    console.error('创建用户失败:', error)
+    Message.error('创建失败')
+  } finally {
+    createUserLoading.value = false
+  }
+}
+
+// 删除用户
+const deleteUser = (user) => {
+  Modal.confirm({
+    title: '确认删除',
+    content: `确定要删除用户 "${user.username}" 吗？此操作不可恢复。`,
+    onOk: async () => {
+      try {
+        const response = await api.delete(`/users/${user.id}`)
+        if (response.data.success) {
+          Message.success('用户删除成功')
+          await refreshUsers()
+        } else {
+          Message.error(response.data.message || '删除失败')
+        }
+      } catch (error) {
+        console.error('删除用户失败:', error)
+        Message.error('删除失败')
+      }
+    }
+  })
+}
+
+// 显示修改密码模态框
+const showChangePasswordModal = (user) => {
+  selectedUser.value = user
+  changePasswordForm.value = {
+    password: '',
+    confirmPassword: ''
+  }
+  changePasswordModalVisible.value = true
+}
+
+// 修改密码
+const changePassword = async () => {
+  const form = changePasswordForm.value
+  
+  if (!form.password || !form.confirmPassword) {
+    Message.error('请填写完整信息')
+    return
+  }
+  
+  if (form.password.length < 6) {
+    Message.error('密码长度不能少于6位')
+    return
+  }
+  
+  if (form.password !== form.confirmPassword) {
+    Message.error('两次输入的密码不一致')
+    return
+  }
+  
+  changePasswordLoading.value = true
+  try {
+    const response = await api.put(`/users/${selectedUser.value.id}/password`, {
+      password: form.password
+    })
+    if (response.data.success) {
+      Message.success('密码修改成功')
+      changePasswordModalVisible.value = false
+    } else {
+      Message.error(response.data.message || '修改失败')
+    }
+  } catch (error) {
+    console.error('修改密码失败:', error)
+    Message.error('修改失败')
+  } finally {
+    changePasswordLoading.value = false
   }
 }
 
@@ -586,6 +796,11 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .section-header h2 {
