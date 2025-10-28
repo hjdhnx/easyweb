@@ -161,7 +161,7 @@
           >
             <template #upload-button>
               <div class="upload-area">
-                <IconCloudUpload class="upload-icon" />
+                <IconUpload class="upload-icon" />
                 <div class="upload-text">
                   <div>点击上传ZIP文件</div>
                   <div class="upload-hint">支持静态网站打包文件</div>
@@ -191,8 +191,7 @@ import {
   IconEye,
   IconCheck,
   IconDelete,
-  IconFolder,
-  IconCloudUpload
+  IconFolder
 } from '@arco-design/web-vue/es/icon'
 import { useUserStore } from '@/stores/user'
 import { useProjectStore } from '@/stores/project'
@@ -326,7 +325,7 @@ const formatFileSize = (bytes) => {
 
 onMounted(async () => {
   await Promise.all([
-    projectStore.fetchProjectDetail(projectId.value),
+    projectStore.fetchProject(projectId.value),
     projectStore.fetchVersions(projectId.value)
   ])
 })

@@ -1,4 +1,4 @@
-import { Version, Project, dbAll, dbRun } from '../utils/database.js';
+import { Version, Project, ProjectPermission, dbAll, dbRun } from '../utils/database.js';
 
 const authenticate = async (request, reply) => {
   try {

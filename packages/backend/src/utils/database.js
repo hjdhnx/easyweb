@@ -124,6 +124,9 @@ const Project = new Model('projects')
 // 版本模型
 const Version = new Model('versions')
 
+// 项目权限模型
+const ProjectPermission = new Model('project_permissions')
+
 // 初始化数据库表和数据
 function initDatabase() {
   try {
@@ -150,11 +153,13 @@ function initDatabase() {
         name VARCHAR(100) NOT NULL,
         description TEXT,
         user_id INTEGER NOT NULL,
+        manager_id INTEGER,
         domain VARCHAR(100),
         status VARCHAR(20) DEFAULT 'active',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users (id)
+        FOREIGN KEY (user_id) REFERENCES users (id),
+        FOREIGN KEY (manager_id) REFERENCES users (id)
       )
     `)
 
@@ -166,11 +171,41 @@ function initDatabase() {
         version VARCHAR(50) NOT NULL,
         file_path VARCHAR(255) NOT NULL,
         file_size INTEGER,
+        upload_user_id INTEGER,
         status VARCHAR(20) DEFAULT 'active',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (project_id) REFERENCES projects (id)
+        FOREIGN KEY (project_id) REFERENCES projects (id),
+        FOREIGN KEY (upload_user_id) REFERENCES users (id)
       )
     `)
+
+    // 创建项目权限表
+    dbRun(`
+      CREATE TABLE IF NOT EXISTS project_permissions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        permission VARCHAR(20) DEFAULT 'read',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES projects (id),
+        FOREIGN KEY (user_id) REFERENCES users (id),
+        UNIQUE(project_id, user_id)
+      )
+    `)
+
+    // 添加缺少的字段（如果不存在）
+    try {
+      dbRun(`ALTER TABLE projects ADD COLUMN manager_id INTEGER REFERENCES users(id)`)
+    } catch (error) {
+      // 字段已存在，忽略错误
+    }
+
+    try {
+      dbRun(`ALTER TABLE versions ADD COLUMN upload_user_id INTEGER REFERENCES users(id)`)
+    } catch (error) {
+      // 字段已存在，忽略错误
+    }
 
     // 检查是否已有管理员用户
     const adminUser = dbGet("SELECT * FROM users WHERE role = 'admin'")
@@ -203,5 +238,6 @@ export {
   Model,
   User,
   Project,
-  Version
+  Version,
+  ProjectPermission
 }

@@ -1,4 +1,4 @@
-import { Project, User, dbAll } from '../utils/database.js';
+import { Project, User, ProjectPermission, dbAll } from '../utils/database.js';
 
 // 认证中间件
 const authenticate = async (request, reply) => {
