@@ -1,4 +1,4 @@
-import { Project, User, ProjectPermission, dbAll } from '../utils/database.js';
+import { Project, User, ProjectPermission, dbAll, dbRun } from '../utils/database.js';
 
 // 认证中间件
 const authenticate = async (request, reply) => {
@@ -72,17 +72,21 @@ export default async function projectRoutes(fastify, options) {
       if (userRole === 'admin') {
         // 管理员可以看到所有项目
         projects = dbAll(`
-          SELECT p.*, u.username as owner_name 
+          SELECT p.*, u.username as owner_name,
+                 v.version as active_version
           FROM projects p 
           LEFT JOIN users u ON p.user_id = u.id 
+          LEFT JOIN versions v ON p.id = v.project_id AND v.is_active = 1
           ORDER BY p.created_at DESC
         `);
       } else {
         // 普通用户只能看到自己的项目
         projects = dbAll(`
-          SELECT p.*, u.username as owner_name 
+          SELECT p.*, u.username as owner_name,
+                 v.version as active_version
           FROM projects p 
           LEFT JOIN users u ON p.user_id = u.id 
+          LEFT JOIN versions v ON p.id = v.project_id AND v.is_active = 1
           WHERE p.user_id = ? 
           ORDER BY p.created_at DESC
         `, [userId]);
@@ -267,6 +271,51 @@ export default async function projectRoutes(fastify, options) {
         });
       }
 
+      // 先删除相关的版本记录
+      const versions = dbAll('SELECT * FROM versions WHERE project_id = ?', [projectId]);
+      
+      // 删除版本的静态文件
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      const { fileURLToPath } = await import('url');
+      
+      const __filename = fileURLToPath(import.meta.url);
+      const __dirname = path.dirname(__filename);
+      const staticDir = path.join(__dirname, '../../static');
+      
+      for (const version of versions) {
+        try {
+          const versionDir = path.join(staticDir, 'projects', projectId.toString(), version.version);
+          await fs.rmdir(versionDir, { recursive: true });
+          console.log(`删除版本目录: ${versionDir}`);
+        } catch (error) {
+          console.warn(`删除版本目录失败: ${error.message}`);
+        }
+      }
+      
+      // 删除项目目录
+      try {
+        const projectDir = path.join(staticDir, 'projects', projectId.toString());
+        await fs.rmdir(projectDir, { recursive: true });
+        console.log(`删除项目目录: ${projectDir}`);
+      } catch (error) {
+        console.warn(`删除项目目录失败: ${error.message}`);
+      }
+
+      // 先清除项目的current_version_id字段（避免循环引用）
+      try {
+        dbRun('UPDATE projects SET current_version_id = NULL WHERE id = ?', [projectId]);
+      } catch (error) {
+        console.warn(`清除current_version_id失败: ${error.message}`);
+      }
+
+      // 删除版本记录
+      dbRun('DELETE FROM versions WHERE project_id = ?', [projectId]);
+      
+      // 删除项目权限记录
+      dbRun('DELETE FROM project_permissions WHERE project_id = ?', [projectId]);
+
+      // 最后删除项目记录
       await Project.delete(projectId);
 
       return {
@@ -277,7 +326,7 @@ export default async function projectRoutes(fastify, options) {
       fastify.log.error(error);
       return reply.status(500).send({
         success: false,
-        message: '服务器内部错误'
+        message: '项目删除失败: ' + error.message
       });
     }
   });

@@ -23,8 +23,8 @@
       >
         <div class="project-header">
           <h3>{{ project.name }}</h3>
-          <a-dropdown v-if="canManageProject(project)">
-            <a-button type="text" size="small">
+          <a-dropdown v-if="canManageProject(project)" @click.stop>
+            <a-button type="text" size="small" @click.stop>
               <IconMore />
             </a-button>
             <template #content>

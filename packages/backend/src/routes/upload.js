@@ -22,8 +22,18 @@ const authenticate = async (request, reply) => {
 // 解压ZIP文件
 const extractZip = async (zipPath, extractPath) => {
   return new Promise((resolve, reject) => {
-    yauzl.open(zipPath, { lazyEntries: true }, (err, zipfile) => {
-      if (err) return reject(err);
+    // 使用更宽松的选项来处理各种ZIP格式
+    const options = { 
+      lazyEntries: true,
+      strictFileNames: false,  // 允许非标准文件名
+      validateEntrySizes: false  // 不严格验证条目大小
+    };
+    
+    yauzl.open(zipPath, options, (err, zipfile) => {
+      if (err) {
+        console.error('ZIP文件打开失败:', err.message);
+        return reject(new Error(`ZIP文件格式错误: ${err.message}`));
+      }
 
       zipfile.readEntry();
       zipfile.on('entry', async (entry) => {
